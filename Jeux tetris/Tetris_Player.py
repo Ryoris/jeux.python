@@ -57,7 +57,7 @@ script_dir = os.path.dirname(os.path.abspath(__file__))
 
 # Initialisation du mixer Pygame
 pygame.mixer.init()
-line_clear_sound = pygame.mixer.Sound(os.path.join(script_dir, 'line_clear.wav'))
+drop_sound = pygame.mixer.Sound(os.path.join(script_dir, 'sounds/block_drop.wav'))
 background = pygame.image.load(os.path.join(script_dir, 'background.jpg'))
 SCREEN.blit(background, (0, 0))
 
@@ -268,7 +268,7 @@ def main():
                                 
                     lines_removed = remove_line()
                     score += calculate_score(lines_removed)
-                    line_clear_sound.play()
+                    drop_sound.play()
 
                     # Générer une nouvelle forme
                     current_shape = next_shape

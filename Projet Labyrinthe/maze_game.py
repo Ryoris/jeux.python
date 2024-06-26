@@ -225,14 +225,11 @@ def display_message(message):
     pygame.display.update()
     pygame.time.delay(5000)
 
-
-
 def main():
     clock = pygame.time.Clock()
     maze, search_steps, path = generate_maze(ROWS, COLS)
     game_over = False
     player = Player(1, 1)
-    pygame.time.delay(3000)
 
 
     soldiers = []

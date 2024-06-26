@@ -1,0 +1,109 @@
+import pygame
+import random
+
+pygame.init()
+
+# Paramètres de la fenêtre de game
+WIDTH, HEIGHT = 600, 400
+SCREEN = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("Snake")
+
+SIZE = 20
+GRID_WIDTH = WIDTH//SIZE     #30
+GRID_HEIGHT = HEIGHT//SIZE       #20
+GRID = [[0 for _ in range(GRID_WIDTH)] for _ in range(GRID_HEIGHT)]
+
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+RED = (255, 0, 0)
+GREEN = (0, 255, 0)
+
+speed = 15
+
+def draw_snake(SIZE, snake_list):
+    for x, y in snake_list:
+        pygame.draw.rect(SCREEN, GREEN, [x * SIZE, y * SIZE, SIZE, SIZE])
+
+def apple_appear():
+    return [random.randrange(0, GRID_WIDTH - 1),random.randrange(0, GRID_HEIGHT - 1)]
+
+def game():
+    run = True
+    game_over = False
+
+    x0, y0 = GRID_WIDTH // 2, GRID_HEIGHT // 2
+    dx, dy = 0, 0
+
+    snake_list = [[x0, y0]]
+    size_snake = 1
+
+    food = apple_appear()
+
+    clock = pygame.time.Clock()
+
+    while run:
+        while game_over:
+            SCREEN.fill(BLACK)
+            font_style = pygame.font.SysFont(None, 24)
+            message = font_style.render("Game Over ! Appuyez sur Q-Quitter ou C-Continuer", True, RED)
+            SCREEN.blit(message, [WIDTH / 6, HEIGHT / 3])
+            pygame.display.update()
+
+            for event in pygame.event.get():
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_q:
+                        run = False
+                        game_over = False
+                    if event.key == pygame.K_c:
+                        game()
+                        return
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                run = False
+            if event.type == pygame.KEYDOWN:
+                #attention définie nouv. direction, pas position
+                if event.key == pygame.K_LEFT:
+                    dx = -1
+                    dy = 0
+                elif event.key == pygame.K_RIGHT:
+                    dx = 1
+                    dy = 0
+                elif event.key == pygame.K_UP:
+                    dx = 0
+                    dy = -1
+                elif event.key == pygame.K_DOWN:
+                    dx = 0
+                    dy = 1
+
+        #Dead by wall
+        if x0 + dx < 0 or x0 + dx >= GRID_WIDTH or y0 + dy < 0 or y0 + dy >= GRID_HEIGHT:
+            game_over = True
+        x0 += dx
+        y0 += dy
+        
+        SCREEN.fill(BLACK)
+        pygame.draw.rect(SCREEN, RED, [food[0] * SIZE, food[1] * SIZE, SIZE, SIZE])
+
+        snake_list.append([x0, y0])
+        if len(snake_list) > size_snake:    #supprime dernier element si taille inchangé
+            del snake_list[0]
+
+        #Suicide 
+        for segment in snake_list[:-1]:
+            if segment == [x0, y0]:
+                game_over = True
+
+        draw_snake(SIZE, snake_list)
+
+        if x0 == food[0] and y0 == food[1]:
+            food = apple_appear()
+            size_snake += 1
+
+        pygame.display.update()
+        clock.tick(speed)
+
+    pygame.quit()
+
+# Lancer le game
+game()

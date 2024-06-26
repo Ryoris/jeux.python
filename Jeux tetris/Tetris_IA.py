@@ -43,18 +43,23 @@ SHAPES = {
 SCREEN = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 pygame.display.set_caption('Tetris')
 
+
+GRID = [[0 for _ in range(GRID_WIDTH)] for _ in range(GRID_HEIGHT)]
+COLOR_GRID = [[None for _ in range(GRID_WIDTH)] for _ in range(GRID_HEIGHT)]
+
+
 # Chemin du répertoire du script
 script_dir = os.path.dirname(os.path.abspath(__file__))
 
 # Initialisation du mixer Pygame
 pygame.mixer.init()
-drop_sound = pygame.mixer.Sound(os.path.join(script_dir, 'block_drop.wav'))
-ligne_sound = pygame.mixer.Sound(os.path.join(script_dir, 'ligne_completed.wav'))
-game_over_sound = pygame.mixer.Sound(os.path.join(script_dir, 'game_over.wav'))
-button_sound = pygame.mixer.Sound(os.path.join(script_dir, 'click_button.wav'))
+drop_sound = pygame.mixer.Sound(os.path.join(script_dir, 'sounds/block_drop.wav'))
+ligne_sound = pygame.mixer.Sound(os.path.join(script_dir, 'sounds/ligne_completed.wav'))
+game_over_sound = pygame.mixer.Sound(os.path.join(script_dir, 'sounds/game_over.wav'))
+button_sound = pygame.mixer.Sound(os.path.join(script_dir, 'sounds/click_button.wav'))
 
 try:
-    pygame.mixer.music.load(os.path.join(script_dir, 'background_music.wav'))
+    pygame.mixer.music.load(os.path.join(script_dir, 'sounds/background_music.wav'))
     # Jouer la musique en boucle
     pygame.mixer.music.play(-1)
 except pygame.error as e:
@@ -69,8 +74,8 @@ clock = pygame.time.Clock()
 #_______________Fonctions______________________
 
 def get_buttons():
-    button_rect1 = pygame.Rect(GAME_WIDTH + 50, GAME_HEIGHT // 2, 30, 30)
-    button_rect2 = pygame.Rect(GAME_WIDTH + 110, GAME_HEIGHT // 2, 30, 30)
+    button_rect1 = pygame.Rect(GAME_WIDTH + 30, GAME_HEIGHT // 2, 30, 30)
+    button_rect2 = pygame.Rect(GAME_WIDTH + 90, GAME_HEIGHT // 2, 30, 30)
 
     return button_rect1, button_rect2
     
@@ -340,8 +345,8 @@ def simul_placement (temp_grid, shape, position):
                     temp_grid[grid_y][grid_x] = 1
     return temp_grid
 
-def screen_updated():
-    global GRID, COLOR_GRID, clock, current_shape, current_color, shape_pos, next_shape, next_color, score, best_move, is_moving, button_rect1, button_rect2
+def screen_updated(button_rect1, button_rect2):
+    global GRID, COLOR_GRID, clock, current_shape, current_color, shape_pos, next_shape, next_color, score, best_move, is_moving
     SCREEN.blit(background, (0, 0))  # Réinitialiser l'écran
     draw_grid()
     draw_shape(current_shape, shape_pos, current_color)
@@ -357,13 +362,12 @@ def screen_updated():
     clock.tick(240)  # Images par seconde
 
 def reset_game():
-    global GRID, COLOR_GRID, clock, current_shape, current_color, shape_pos, next_shape, next_color, score, fall_time, fall_delay, game_over, best_move, is_moving, button_rect1, button_rect2
+    global GRID, COLOR_GRID, current_shape, current_color, next_shape, next_color, shape_pos, score, fall_time, game_over, best_move, is_moving
     GRID = [[0 for _ in range(GRID_WIDTH)] for _ in range(GRID_HEIGHT)]
     COLOR_GRID = [[None for _ in range(GRID_WIDTH)] for _ in range(GRID_HEIGHT)]
     current_shape, current_color = get_shape()
-    shape_pos = [GAME_WIDTH // 2 - BLOCK_SIZE, 0]
     next_shape, next_color = get_shape()
-    button_rect1, button_rect2 = get_buttons()
+    shape_pos = [GAME_WIDTH // 2 - BLOCK_SIZE, 0]
     score = 0
     fall_time = 0
     game_over = False
@@ -377,10 +381,18 @@ def game_Over():
     game_over_sound.play()
 
 def main():
-    global GRID, COLOR_GRID, clock, current_shape, current_color, shape_pos, next_shape, next_color, score, fall_time, fall_delay, game_over, best_move, is_moving, button_rect1, button_rect2
-
+    global GRID, COLOR_GRID, clock, current_shape, current_color, shape_pos, next_shape, next_color, score, fall_time, fall_delay, game_over, best_move, is_moving
+    current_shape, current_color = get_shape()
+    shape_pos = [GAME_WIDTH // 2 - BLOCK_SIZE, 0]
+    next_shape, next_color = get_shape()
+    button_rect1, button_rect2 = get_buttons()
+    
+    score = 0
+    fall_time = 0
     fall_delay = 0.2
-    reset_game()
+    game_over = False
+    best_move = None
+    is_moving = False
 
     while True:
         for event in pygame.event.get():
@@ -395,13 +407,8 @@ def main():
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if button_rect1.collidepoint(event.pos):
                     fall_delay *= 2
-                    if (fall_delay > 2):
-                        fall_delay = 2
                 elif button_rect2.collidepoint(event.pos):
                     fall_delay /= 2
-                    if (fall_delay < 0.0002):
-                        fall_delay = 0.0002
-
                 #print(fall_delay)
                 button_sound.play()
 
@@ -458,7 +465,7 @@ def main():
                         is_moving = False
                         best_move = None
 
-            screen_updated()
+            screen_updated(button_rect1, button_rect2)
 
 
 if __name__ == "__main__":
