@@ -1,9 +1,10 @@
 import pygame
 import random
 import heapq
+import math
 
 WIDTH, HEIGHT = 800, 600
-ROWS, COLS = 15, 20
+ROWS, COLS = 30, 40
 BLOCK_SIZE = WIDTH // COLS
 FPS = 60
 
@@ -20,86 +21,121 @@ pygame.init()
 SCREEN = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Labyrinthe")
 
-# Player Class
+
+def distance(p1, p2):
+    """Calculates the Euclidean distance between two points."""
+    return math.sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)
+
 class Player:
     def __init__(self, x, y):
         self.x = x
         self.y = y
         self.color = GREEN
         self.size = BLOCK_SIZE // 2
+        self.move_counter = 0
+        self.move_delay = 10  # Nombre de ticks entre les mouvements
+        self.direction = (0, 1)  # Initial direction pointing upwards
+
     
+    def get_triangle_points(self):
+        cx = self.x * BLOCK_SIZE + BLOCK_SIZE // 2
+        cy = self.y * BLOCK_SIZE + BLOCK_SIZE // 2
+        dx, dy = self.direction
+
+        if dx == 0 and dy == -1:  # Up
+            points = [(cx, cy - self.size), (cx - self.size, cy + self.size), (cx + self.size, cy + self.size)]
+        elif dx == 0 and dy == 1:  # Down
+            points = [(cx, cy + self.size), (cx - self.size, cy - self.size), (cx + self.size, cy - self.size)]
+        elif dx == -1 and dy == 0:  # Left
+            points = [(cx - self.size, cy), (cx + self.size, cy - self.size), (cx + self.size, cy + self.size)]
+        elif dx == 1 and dy == 0:  # Right
+            points = [(cx + self.size, cy), (cx - self.size, cy - self.size), (cx - self.size, cy + self.size)]
+        else:
+            points = [(cx, cy - self.size), (cx - self.size, cy + self.size), (cx + self.size, cy + self.size)]
+
+        return points
+
     def draw(self, SCREEN):
-        pygame.draw.polygon(SCREEN, self.color, [
-            (self.x * BLOCK_SIZE + BLOCK_SIZE // 2, self.y * BLOCK_SIZE + 3),
-            (self.x * BLOCK_SIZE + 3, self.y * BLOCK_SIZE + BLOCK_SIZE - 3),
-            (self.x * BLOCK_SIZE + BLOCK_SIZE - 3, self.y * BLOCK_SIZE + BLOCK_SIZE - 3)
-        ])
+        pygame.draw.polygon(SCREEN, self.color, self.get_triangle_points())
 
     def move(self, dx, dy, maze):
-        new_x = self.x + dx
-        new_y = self.y + dy
-        if maze[int(new_y)][int(new_x)] == 0:
-            self.x = new_x
-            self.y = new_y
+        self.move_counter += 1
+        if self.move_counter > self.move_delay:
+            self.move_counter = 0
 
-# Soldier Class
+            new_x = self.x + dx
+            new_y = self.y + dy
+            if maze[int(new_y)][int(new_x)] == 0:
+                self.x = new_x
+                self.y = new_y
+                if dx != 0 or dy != 0:
+                    self.direction = (dx, dy)
+
+
 class Soldier:
     def __init__(self, x, y):
         self.x = x
         self.y = y
         self.color = RED
         self.vision_range = 5
+        self.path = []
+        self.target = None
+        self.move_counter = 0
+        self.move_delay = 30
     
     def draw(self, SCREEN):
         pygame.draw.rect(SCREEN, self.color, (self.x * BLOCK_SIZE, self.y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE))
-        self.draw_vision(SCREEN)
+        #self.draw_vision(SCREEN)
     
     def draw_vision(self, SCREEN):
         vision_radius = self.vision_range * BLOCK_SIZE
         pygame.draw.circle(SCREEN, LIGHT_RED, (int(self.x * BLOCK_SIZE + BLOCK_SIZE / 2), int(self.y * BLOCK_SIZE + BLOCK_SIZE / 2)), vision_radius, 1)
     
-    def can_see_player(self, player, maze):
-        if abs(self.x - player.x) <= self.vision_range and abs(self.y - player.y) <= self.vision_range:
-            x0, y0 = int(self.x), int(self.y)
-            x1, y1 = int(player.x), int(player.y)
-            for x, y in bresenham(self.x, self.y, player.x, player.y):
-                if maze[y][x] == 1:
-                    return False
-            return True
-        return False
+    def is_position_valid(self, maze, player, soldiers):
+        # Check distance to all existing soldiers
+        for soldier in soldiers:
+            if distance((self.x, self.y), (soldier.x, soldier.y)) < self.vision_range * 2:
+                return False
+        
+        # Check distance to player
+        if distance((self.x, self.y), (player.x, player.y)) < self.vision_range * 2:
+            return False
+        
+        # Check if the position is on a free cell in the maze
+        if maze[self.y][self.x] != 0:
+            return False
+        
+        return True
+    
+    def choose_random_target(self, maze):
+        while True:
+            target_x = random.randint(1, COLS - 2)  #pas les contours de l'arène
+            target_y = random.randint(1, ROWS - 2)
+            if maze[target_y][target_x] == 0:
+                self.target = (target_x, target_y)
+                path_found, _, path = a_star(maze, (self.x, self.y), self.target)
+                if path_found:
+                    self.path = path[1:]  # Exclude the current position
+                    break
 
     def move_towards_player(self, player, maze):
-        if self.can_see_player(player, maze):
-            if self.x < player.x and maze[int(self.y)][int(self.x + 1)] == 0:
-                self.x += 1
-            elif self.x > player.x and maze[int(self.y)][int(self.x - 1)] == 0:
-                self.x -= 1
-            elif self.y < player.y and maze[int(self.y + 1)][int(self.x)] == 0:
-                self.y += 1
-            elif self.y > player.y and maze[int(self.y - 1)][int(self.x)] == 0:
-                self.y -= 1
+        self.move_counter += 1
+        if self.move_counter > self.move_delay:
+            self.move_counter = 0
 
-# Bresenham's line algorithm for line of sight
-def bresenham(x0, y0, x1, y1):
-    points = []
-    dx = abs(x1 - x0)
-    dy = abs(y1 - y0)
-    sx = 1 if x0 < x1 else -1
-    sy = 1 if y0 < y1 else -1
-    err = dx - dy
+            if abs(self.x - player.x) <= self.vision_range and abs(self.y - player.y) <= self.vision_range: 
+                path_found, _, path = a_star(maze, (self.x, self.y), (player.x, player.y))
+                if path_found:
+                    self.path = path[1:]  # Exclude the current position
+                self.target = None
+                #print("en chasse")
+            else:
+                if self.target is None or (self.x, self.y) == self.target:
+                    self.choose_random_target(maze)
 
-    while True:
-        points.append((x0, y0))
-        if x0 == x1 and y0 == y1:
-            break
-        e2 = err * 2
-        if e2 > -dy:
-            err -= dy
-            x0 += sx
-        if e2 < dx:
-            err += dx
-            y0 += sy
-    return points
+            if self.path:
+                next_move = self.path.pop(0)
+                self.x, self.y = next_move
 
 def heuristic(a, b):
     return abs(a[0] - b[0]) + abs(a[1] - b[1])
@@ -154,13 +190,15 @@ def a_star(maze, start, goal):
 
 def generate_maze(rows, cols):
     while True:
-        maze = [[0 if random.random() > 0.4 else 1 for _ in range(cols)] for _ in range(rows)]
+        maze = [[0 if random.random() > 0.35 else 1 for _ in range(cols)] for _ in range(rows)]
         for i in range(rows):
             maze[i][0] = maze[i][cols - 1] = 1
         for j in range(cols):
             maze[0][j] = maze[rows - 1][j] = 1
+        maze[1][1] = 0
         maze[rows - 2][cols - 2] = 0  # Create exit
 
+        #Vérifie qu'un chemin est possible
         path_exists, search_steps, path = a_star(maze, (1, 1), (COLS - 2, ROWS - 2))
         if path_exists:
             return maze, search_steps, path
@@ -173,13 +211,39 @@ def draw_maze(SCREEN, maze):
     # Draw the exit
     pygame.draw.rect(SCREEN, BLUE, ((COLS - 2) * BLOCK_SIZE, (ROWS - 2) * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE))
 
+def display_message(message):
+    font1 = pygame.font.SysFont("comicsansms", 48)
+    label1 = font1.render(message, True, WHITE)
+
+    message_surface = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+    message_surface.fill((0, 0, 0, 180))  # Remplir avec un fond transparent
+    message_surface.blit(label1, label1.get_rect(center=(WIDTH // 2, HEIGHT // 3)))
+
+    # Afficher la surface du message sur l'écran
+    message_rect = message_surface.get_rect(center=(WIDTH // 2, HEIGHT // 2))
+    SCREEN.blit(message_surface, message_rect)
+    pygame.display.update()
+    pygame.time.delay(5000)
+
+
+
 def main():
     clock = pygame.time.Clock()
     maze, search_steps, path = generate_maze(ROWS, COLS)
     game_over = False
     player = Player(1, 1)
-    nb_soldiers = 2
-    soldiers = [Soldier(random.randint(1, COLS-2), random.randint(1, ROWS-2)) for _ in range(nb_soldiers)]
+    pygame.time.delay(3000)
+
+
+    soldiers = []
+    for _ in range(5):
+        while True:
+            x = random.randint(1, COLS-2)
+            y = random.randint(1, ROWS-2)
+            soldier = Soldier(x, y)
+            if soldier.is_position_valid(maze, player, soldiers):
+                soldiers.append(soldier)
+                break
 
     search_step_index = 0
 
@@ -190,7 +254,6 @@ def main():
         pygame.display.flip()
         pygame.time.delay(10)  # Delay to clearly show the path
 
-
     # Once A* search is complete, show the final path
     if path:
         for x, y in path:
@@ -200,7 +263,6 @@ def main():
     pygame.time.delay(1000)  # Delay to clearly show the path
 
     while not game_over:
-        pygame.time.delay(60)
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 game_over = True
@@ -209,24 +271,23 @@ def main():
         dx, dy = 0, 0
         if keys[pygame.K_LEFT]:
             dx = -1
-        if keys[pygame.K_RIGHT]:
+        elif keys[pygame.K_RIGHT]:
             dx = 1
-        if keys[pygame.K_UP]:
+        elif keys[pygame.K_UP]:
             dy = -1
-        if keys[pygame.K_DOWN]:
+        elif keys[pygame.K_DOWN]:
             dy = 1
 
         player.move(dx, dy, maze)
 
         for soldier in soldiers:
-            pygame.time.delay(100)
             soldier.move_towards_player(player, maze)
             if int(soldier.x) == int(player.x) and int(soldier.y) == int(player.y):
-                print("Game Over!")
+                display_message("Game Over !")
                 game_over = True
         
         if int(player.x) == COLS - 2 and int(player.y) == ROWS - 2:
-            print("You win!")
+            display_message("You win !")
             game_over = True
 
         SCREEN.fill(WHITE)
@@ -235,10 +296,9 @@ def main():
         for soldier in soldiers:
             soldier.draw(SCREEN)
 
-
         pygame.display.update()
         clock.tick(FPS)
-
+   
     pygame.quit()
 
 if __name__ == "__main__":
